@@ -14,12 +14,13 @@ import Backend from 'i18next-fs-backend';
 import i18nextMiddleware from 'i18next-http-middleware';
 //----------------------------------------
 
+import { rateLimiterRedisMiddleware } from '@utils/DbUtlis/RateLimiterInRedis';
 import compression, { CompressionOptions } from 'compression';
 import file_route from './app/routes/file_route';
 import config from './config';
 import helmetConfig from './config/helmetConfig';
 import { TestFile } from './test';
-import { rateLimiterRedisMiddleware } from '@utils/DbUtlis/RateLimiterInRedis';
+import path from 'path';
 const app: Application = express();
 
 app.use(helmetConfig);
@@ -92,6 +93,7 @@ app.use(i18nextMiddleware.handle(i18next));
 // ----------- end i18next-------------------
 
 app.set('view engine', 'ejs');
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -100,6 +102,70 @@ app.get('/', async (req: Request, res: Response, next: NextFunction) => {
   } catch (error) {
     next(error);
   }
+});
+// app.get('/metrics', async (req: Request, res: Response, next: NextFunction) => {
+//   try {
+//     res.setHeader('Content-Type', promClient.register.contentType);
+//     const metrics = await promClient.register.metrics();
+//     res.send(metrics);
+//   } catch (error) {
+//     next(error);
+//   }
+// });
+
+const waitAndRespond = async function (waitTimeInMilliseconds = 30000) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve({
+        message: `Waited for ${waitTimeInMilliseconds / 1000} seconds`,
+      });
+    }, waitTimeInMilliseconds);
+  });
+};
+
+app.get('/api/v1/server-test', async (req, res, next) => {
+  try {
+    const query = req.query;
+    if (query.error) {
+      const errorMessages = [
+        'Unexpected server error occurred.',
+        'Something went wrong, please try again later.',
+        'Internal server malfunction detected.',
+        'Oops! The server encountered an issue.',
+        'Server glitch! Please report this incident.',
+      ];
+      const randomError =
+        errorMessages[Math.floor(Math.random() * errorMessages.length)];
+      const localDateTime = new Date().toLocaleString();
+      throw new Error(`${randomError} - ${localDateTime}`);
+    }
+
+    let waitTime;
+    if (query.time) {
+      waitTime = Number(query.time) * 1000;
+    } else {
+      waitTime = Math.floor(Math.random() * (3000 - 200 + 1)) + 200; // Random time between 200ms and 5000ms
+    }
+
+    const response = await waitAndRespond(waitTime);
+    res.send(response);
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/loggers', (req: Request, res: Response) => {
+  res.status(200).send(`
+   <html>
+      <head>
+        <title>Docker Logs Viewer</title>
+        <link rel="stylesheet" href="/styles.css">
+      </head>
+      <body>
+        <h1>Welcome to the Docker Logs Viewer Page!</h1>
+        <p>Go to <a href="/logs/errors">Error Logs</a> or <a href="/logs/successes">Success Logs</a>.</p>
+      </body>
+    </html>
+  `);
 });
 
 TestFile();

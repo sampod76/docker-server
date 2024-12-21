@@ -77,7 +77,7 @@ async function connection() {
 
     // ! are you use multiple connections 1. server is run 5000 port -> socket is run 5001 then use
 
-    app.listen(config.port, (): void => {
+    server = app.listen(config.port, (): void => {
       config.env === 'production'
         ? logger.info(
             `Server is listening on port ${config.port}`.blue.underline.bold,
